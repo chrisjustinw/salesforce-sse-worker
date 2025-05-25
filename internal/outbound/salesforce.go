@@ -11,14 +11,16 @@ import (
 )
 
 const (
-	ssePath                = "/eventrouter/v1/sse"
-	createConversationPath = "/iamessage/api/v2/conversation"
+	ssePath                       = "/eventrouter/v1/sse"
+	createConversationPath        = "/iamessage/api/v2/conversation"
+	generateContinuationTokenPath = "/iamessage/api/v2/authorization/continuation-access-token"
 )
 
 type (
 	SalesforceOutbound interface {
 		Subscribe(ctx context.Context, token string) error
 		CreateConversation(ctx context.Context, token string, req request.CreateConversationRequest) ([]byte, error)
+		GenerateContinuationToken(ctx context.Context, token string) ([]byte, error)
 	}
 
 	SalesforceOutboundImpl struct {
@@ -67,6 +69,32 @@ func (s *SalesforceOutboundImpl) CreateConversation(ctx context.Context, token s
 		Path:    url,
 		Headers: headers,
 		Body:    bytes.NewReader(payload),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
+}
+
+func (s *SalesforceOutboundImpl) GenerateContinuationToken(ctx context.Context, token string) ([]byte, error) {
+	url := s.salesforceConfig.Host + generateContinuationTokenPath
+
+	headers := map[string]string{
+		"Authorization": "Bearer " + token,
+		"Content-Type":  "application/json",
+	}
+
+	resp, err := s.httpClient.Get(ctx, request.HTTPRequest{
+		Path:    url,
+		Headers: headers,
 	})
 
 	if err != nil {

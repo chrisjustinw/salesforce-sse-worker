@@ -9,6 +9,7 @@ import (
 
 type ConversationHandler interface {
 	CreateConversation(e echo.Context) error
+	GenerateContinuationToken(e echo.Context) error
 }
 
 type ConversationHandlerImpl struct {
@@ -32,6 +33,15 @@ func (m *ConversationHandlerImpl) CreateConversation(e echo.Context) error {
 	}
 
 	resp, err := m.conversationService.PublishConversation(e.Request().Context(), req)
+	if err != nil {
+		return e.JSON(500, map[string]string{"error": err.Error()})
+	}
+
+	return e.JSON(200, resp)
+}
+
+func (m *ConversationHandlerImpl) GenerateContinuationToken(e echo.Context) error {
+	resp, err := m.conversationService.GenerateContinuationToken(e.Request().Context())
 	if err != nil {
 		return e.JSON(500, map[string]string{"error": err.Error()})
 	}

@@ -7,15 +7,18 @@ import (
 	"github.com/IBM/sarama"
 	"log/slog"
 	"salesforce-sse-worker/internal/kafka"
+	"salesforce-sse-worker/internal/model"
 	"salesforce-sse-worker/internal/outbound"
 	"salesforce-sse-worker/internal/repository"
 	"salesforce-sse-worker/internal/request"
+	"salesforce-sse-worker/internal/response"
 )
 
 type (
 	ConversationService interface {
 		PublishConversation(ctx context.Context, request request.CreateConversationRequest) (string, error)
 		ConsumeConversation(ctx context.Context, partition int, message []byte) error
+		GenerateContinuationToken(ctx context.Context) (string, error)
 	}
 
 	ConversationServiceImpl struct {
@@ -82,4 +85,32 @@ func (m *ConversationServiceImpl) ConsumeConversation(ctx context.Context, parti
 	}
 
 	return nil
+}
+
+func (m *ConversationServiceImpl) GenerateContinuationToken(ctx context.Context) (string, error) {
+	conversationMappings, err := m.conversationMappingRepository.FindAll(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve conversation mappings: %w", err)
+	}
+
+	for _, mapping := range conversationMappings {
+		resp, err := m.salesforceOutbound.GenerateContinuationToken(ctx, mapping.Token)
+		if err != nil {
+			continue
+		}
+
+		var data response.GenerateContinuationTokenResponse
+		if err := json.Unmarshal(resp, &data); err != nil {
+			continue
+		}
+
+		if _, err = m.conversationMappingRepository.Upsert(ctx, model.ConversationMapping{
+			Partition: mapping.Partition,
+			Token:     data.AccessToken,
+		}); err != nil {
+			continue
+		}
+	}
+
+	return "Successfully generated continuation tokens", nil
 }

@@ -1,9 +1,6 @@
 package response
 
-type CreateConversationResponse struct {
-	Status string `json:"status"`
-}
-
-type UpsertTokenResponse struct {
-	Status string `json:"status"`
+type GenerateContinuationTokenResponse struct {
+	AccessToken string `json:"accessToken"`
+	LastEventId string `json:"lastEventId"`
 }

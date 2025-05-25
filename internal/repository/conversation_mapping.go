@@ -13,6 +13,7 @@ const (
 type (
 	ConversationMappingRepository interface {
 		Upsert(ctx context.Context, data model.ConversationMapping) (*mongo.UpdateResult, error)
+		FindAll(ctx context.Context) ([]model.ConversationMapping, error)
 		FindOneByPartition(ctx context.Context, partition int) (*model.ConversationMapping, error)
 	}
 
@@ -33,6 +34,31 @@ func (s *ConversationMappingRepositoryImpl) Upsert(ctx context.Context, data mod
 	}
 
 	return s.MongoDatabase.ReplaceOne(ctx, conversationMapping, query, data)
+}
+
+func (s *ConversationMappingRepositoryImpl) FindAll(ctx context.Context) ([]model.ConversationMapping, error) {
+	query := map[string]interface{}{}
+
+	cursor, err := s.MongoDatabase.Find(ctx, conversationMapping, query)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []model.ConversationMapping
+	for cursor.Next(ctx) {
+		var mapping model.ConversationMapping
+		if err := cursor.Decode(&mapping); err != nil {
+			return nil, err
+		}
+		results = append(results, mapping)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func (s *ConversationMappingRepositoryImpl) FindOneByPartition(ctx context.Context, partition int) (*model.ConversationMapping, error) {
