@@ -6,44 +6,70 @@ import (
 	"fmt"
 	"github.com/IBM/sarama"
 	"log/slog"
-	"salesforce-sse-worker/internal/kafka"
+	"salesforce-sse-worker/configs"
+	"salesforce-sse-worker/internal/library"
 	"salesforce-sse-worker/internal/model"
-	"salesforce-sse-worker/internal/outbound"
 	"salesforce-sse-worker/internal/repository"
 	"salesforce-sse-worker/internal/request"
 	"salesforce-sse-worker/internal/response"
+	"salesforce-sse-worker/internal/service/outbound"
 )
 
 type (
 	ConversationService interface {
-		PublishConversation(ctx context.Context, request request.CreateConversationRequest) (string, error)
-		ConsumeConversation(ctx context.Context, partition int, message []byte) error
-		GenerateContinuationToken(ctx context.Context) (string, error)
+		GenerateToken(ctx context.Context, req request.GenerateTokenRequest) (string, error)
+		CreateConversationProducer(ctx context.Context, req request.CreateConversationRequest) (string, error)
+		CreateConversationConsumer(ctx context.Context, req request.CreateConversationRequest, partition int) error
 	}
 
 	ConversationServiceImpl struct {
-		kafkaProducer                 kafka.Producer
+		kafkaConfig                   configs.KafkaConfig
+		kafkaProducer                 library.KafkaProducer
 		salesforceOutbound            outbound.SalesforceOutbound
 		conversationMappingRepository repository.ConversationMappingRepository
 	}
 )
 
-func NewConversationService(kafkaProducer kafka.Producer, salesforceOutbound outbound.SalesforceOutbound, conversationMappingRepository repository.ConversationMappingRepository) ConversationService {
+func NewConversationService(kafkaConfig configs.KafkaConfig, kafkaProducer library.KafkaProducer, salesforceOutbound outbound.SalesforceOutbound, conversationMappingRepository repository.ConversationMappingRepository) ConversationService {
 	return &ConversationServiceImpl{
+		kafkaConfig:                   kafkaConfig,
 		kafkaProducer:                 kafkaProducer,
 		salesforceOutbound:            salesforceOutbound,
 		conversationMappingRepository: conversationMappingRepository,
 	}
 }
 
-func (m *ConversationServiceImpl) PublishConversation(ctx context.Context, request request.CreateConversationRequest) (string, error) {
-	payload, err := json.Marshal(request)
+func (m *ConversationServiceImpl) GenerateToken(ctx context.Context, req request.GenerateTokenRequest) (string, error) {
+	for partition := 0; partition <= m.kafkaConfig.PartitionCount; partition++ {
+		resp, err := m.salesforceOutbound.GenerateToken(ctx, req)
+		if err != nil {
+			continue
+		}
+
+		var data response.GenerateTokenResponse
+		if err := json.Unmarshal(resp, &data); err != nil {
+			continue
+		}
+
+		if _, err = m.conversationMappingRepository.Upsert(ctx, model.ConversationMapping{
+			Partition: partition,
+			Token:     data.AccessToken,
+		}); err != nil {
+			continue
+		}
+	}
+
+	return "Successfully generated tokens", nil
+}
+
+func (m *ConversationServiceImpl) CreateConversationProducer(ctx context.Context, req request.CreateConversationRequest) (string, error) {
+	payload, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+		return "", fmt.Errorf("failed to marshal req: %w", err)
 	}
 
 	msg := &sarama.ProducerMessage{
-		Topic: "conversation.create",
+		Topic: m.kafkaConfig.Topics[0],
 		Value: sarama.ByteEncoder(payload),
 	}
 
@@ -53,7 +79,7 @@ func (m *ConversationServiceImpl) PublishConversation(ctx context.Context, reque
 	}
 
 	slog.InfoContext(ctx, "Kafka message produced",
-		slog.String("conversationId", request.ConversationId),
+		slog.String("conversationId", req.ConversationId),
 		slog.String("topic", msg.Topic),
 		slog.Int("partition", int(partition)),
 		slog.Int64("offset", offset),
@@ -62,21 +88,10 @@ func (m *ConversationServiceImpl) PublishConversation(ctx context.Context, reque
 	return "Message successfully queued", nil
 }
 
-func (m *ConversationServiceImpl) ConsumeConversation(ctx context.Context, partition int, message []byte) error {
+func (m *ConversationServiceImpl) CreateConversationConsumer(ctx context.Context, req request.CreateConversationRequest, partition int) error {
 	conversationMapping, err := m.conversationMappingRepository.FindOneByPartition(ctx, partition)
 	if conversationMapping == nil || err != nil {
 		return fmt.Errorf("failed to find token for partition %d: %w", partition, err)
-	}
-
-	slog.InfoContext(ctx, "Consuming conversation message",
-		slog.Int("partition", partition),
-		slog.String("token", conversationMapping.Token),
-		slog.String("message", string(message)),
-	)
-
-	var req request.CreateConversationRequest
-	if err := json.Unmarshal(message, &req); err != nil {
-		return fmt.Errorf("failed to decode message: %w", err)
 	}
 
 	_, err = m.salesforceOutbound.CreateConversation(ctx, conversationMapping.Token, req)
@@ -85,32 +100,4 @@ func (m *ConversationServiceImpl) ConsumeConversation(ctx context.Context, parti
 	}
 
 	return nil
-}
-
-func (m *ConversationServiceImpl) GenerateContinuationToken(ctx context.Context) (string, error) {
-	conversationMappings, err := m.conversationMappingRepository.FindAll(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to retrieve conversation mappings: %w", err)
-	}
-
-	for _, mapping := range conversationMappings {
-		resp, err := m.salesforceOutbound.GenerateContinuationToken(ctx, mapping.Token)
-		if err != nil {
-			continue
-		}
-
-		var data response.GenerateContinuationTokenResponse
-		if err := json.Unmarshal(resp, &data); err != nil {
-			continue
-		}
-
-		if _, err = m.conversationMappingRepository.Upsert(ctx, model.ConversationMapping{
-			Partition: mapping.Partition,
-			Token:     data.AccessToken,
-		}); err != nil {
-			continue
-		}
-	}
-
-	return "Successfully generated continuation tokens", nil
 }

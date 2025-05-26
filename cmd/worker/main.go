@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"salesforce-sse-worker/internal/di"
-	"salesforce-sse-worker/internal/kafka"
+	"salesforce-sse-worker/internal/library"
 )
 
 func main() {
@@ -12,7 +12,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	if err := container.Invoke(func(consumer kafka.Consumer) {
+	if err := container.Invoke(func(consumer library.KafkaConsumer) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 

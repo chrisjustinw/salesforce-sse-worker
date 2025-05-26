@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"salesforce-sse-worker/internal/library"
 	"salesforce-sse-worker/internal/model"
 )
 
@@ -12,28 +13,20 @@ const (
 
 type (
 	ConversationMappingRepository interface {
-		Upsert(ctx context.Context, data model.ConversationMapping) (*mongo.UpdateResult, error)
 		FindAll(ctx context.Context) ([]model.ConversationMapping, error)
 		FindOneByPartition(ctx context.Context, partition int) (*model.ConversationMapping, error)
+		Upsert(ctx context.Context, data model.ConversationMapping) (*mongo.UpdateResult, error)
 	}
 
 	ConversationMappingRepositoryImpl struct {
-		MongoDatabase BaseRepository
+		MongoDatabase library.MongoDatabase
 	}
 )
 
-func NewConversationMappingRepository(mongoDatabase BaseRepository) ConversationMappingRepository {
+func NewConversationMappingRepository(mongoDatabase library.MongoDatabase) ConversationMappingRepository {
 	return &ConversationMappingRepositoryImpl{
 		MongoDatabase: mongoDatabase,
 	}
-}
-
-func (s *ConversationMappingRepositoryImpl) Upsert(ctx context.Context, data model.ConversationMapping) (*mongo.UpdateResult, error) {
-	query := map[string]interface{}{
-		"partition": data.Partition,
-	}
-
-	return s.MongoDatabase.ReplaceOne(ctx, conversationMapping, query, data)
 }
 
 func (s *ConversationMappingRepositoryImpl) FindAll(ctx context.Context) ([]model.ConversationMapping, error) {
@@ -77,4 +70,12 @@ func (s *ConversationMappingRepositoryImpl) FindOneByPartition(ctx context.Conte
 	}
 
 	return &result, nil
+}
+
+func (s *ConversationMappingRepositoryImpl) Upsert(ctx context.Context, data model.ConversationMapping) (*mongo.UpdateResult, error) {
+	query := map[string]interface{}{
+		"partition": data.Partition,
+	}
+
+	return s.MongoDatabase.ReplaceOne(ctx, conversationMapping, query, data)
 }

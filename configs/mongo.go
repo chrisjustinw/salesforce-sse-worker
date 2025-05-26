@@ -29,7 +29,7 @@ func NewMongoConfig(e EnvFileRead) (MongoConfig, error) {
 	return cfg, nil
 }
 
-func NewMongoClient(cfg MongoConfig) (*mongo.Client, error) {
+func NewMongoClientConfig(cfg MongoConfig) (*mongo.Client, error) {
 	connectTimeout := getDurationFromMilliseconds(cfg.ConnectionTimeout)
 	maxConnectionIdleTime := getDurationFromMilliseconds(cfg.MaxConnectionIdleTime)
 	minPoolSize := uint64(cfg.MinPoolSize)
@@ -46,10 +46,6 @@ func NewMongoClient(cfg MongoConfig) (*mongo.Client, error) {
 	}
 
 	return mongo.Connect(clientOptions.ApplyURI(cfg.Uri))
-}
-
-func NewMongoDatabase(cfg MongoConfig, client *mongo.Client) *mongo.Database {
-	return client.Database(cfg.DatabaseName)
 }
 
 func getDurationFromMilliseconds(millisecond int) time.Duration {

@@ -8,8 +8,8 @@ import (
 )
 
 type ConversationHandler interface {
+	GenerateToken(e echo.Context) error
 	CreateConversation(e echo.Context) error
-	GenerateContinuationToken(e echo.Context) error
 }
 
 type ConversationHandlerImpl struct {
@@ -18,6 +18,26 @@ type ConversationHandlerImpl struct {
 
 func NewConversationHandler(conversationService service.ConversationService) ConversationHandler {
 	return &ConversationHandlerImpl{conversationService: conversationService}
+}
+
+func (m *ConversationHandlerImpl) GenerateToken(e echo.Context) error {
+	var req request.GenerateTokenRequest
+
+	if err := e.Bind(&req); err != nil {
+		return e.JSON(400, map[string]string{"error": "Invalid request body"})
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(req); err != nil {
+		return e.JSON(400, map[string]string{"error": "Validation failed", "details": err.Error()})
+	}
+
+	resp, err := m.conversationService.GenerateToken(e.Request().Context(), req)
+	if err != nil {
+		return e.JSON(500, map[string]string{"error": err.Error()})
+	}
+
+	return e.JSON(200, resp)
 }
 
 func (m *ConversationHandlerImpl) CreateConversation(e echo.Context) error {
@@ -32,16 +52,7 @@ func (m *ConversationHandlerImpl) CreateConversation(e echo.Context) error {
 		return e.JSON(400, map[string]string{"error": "Validation failed", "details": err.Error()})
 	}
 
-	resp, err := m.conversationService.PublishConversation(e.Request().Context(), req)
-	if err != nil {
-		return e.JSON(500, map[string]string{"error": err.Error()})
-	}
-
-	return e.JSON(200, resp)
-}
-
-func (m *ConversationHandlerImpl) GenerateContinuationToken(e echo.Context) error {
-	resp, err := m.conversationService.GenerateContinuationToken(e.Request().Context())
+	resp, err := m.conversationService.CreateConversationProducer(e.Request().Context(), req)
 	if err != nil {
 		return e.JSON(500, map[string]string{"error": err.Error()})
 	}

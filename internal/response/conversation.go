@@ -1,6 +1,6 @@
 package response
 
-type GenerateContinuationTokenResponse struct {
+type GenerateTokenResponse struct {
 	AccessToken string `json:"accessToken"`
 	LastEventId string `json:"lastEventId"`
 }

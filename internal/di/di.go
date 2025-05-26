@@ -5,11 +5,10 @@ import (
 	"go.uber.org/dig"
 	"salesforce-sse-worker/configs"
 	"salesforce-sse-worker/internal/handler"
-	"salesforce-sse-worker/internal/kafka"
-	"salesforce-sse-worker/internal/outbound"
-	"salesforce-sse-worker/internal/outbound/client"
+	"salesforce-sse-worker/internal/library"
 	"salesforce-sse-worker/internal/repository"
 	"salesforce-sse-worker/internal/service"
+	"salesforce-sse-worker/internal/service/outbound"
 )
 
 type registry struct {
@@ -42,20 +41,19 @@ func provides(r *registry) {
 	r.provide(configs.NewKafkaConfig)
 	r.provide(configs.NewSaramaConfig)
 	r.provide(configs.NewMongoConfig)
-	r.provide(configs.NewMongoClient)
-	r.provide(configs.NewMongoDatabase)
+	r.provide(configs.NewMongoClientConfig)
 	r.provide(configs.NewSalesforceConfig)
 
-	r.provide(repository.NewBaseRepository)
-	r.provide(repository.NewConversationMappingRepository)
+	r.provide(library.NewHTTPClient)
+	r.provide(library.NewKafkaProducer)
+	r.provide(library.NewKafkaConsumer)
+	r.provide(library.NewMongoDatabase)
 
-	r.provide(kafka.NewProducer)
-	r.provide(kafka.NewConsumer)
+	r.provide(repository.NewConversationMappingRepository)
 
 	r.provide(handler.NewKafkaHandler)
 	r.provide(handler.NewConversationHandler)
 
-	r.provide(client.NewHTTPClient)
 	r.provide(outbound.NewSalesforceOutbound)
 
 	r.provide(service.NewConversationService)

@@ -17,8 +17,8 @@ func main() {
 	e.HideBanner = true
 
 	if err := container.Invoke(func(messageHandler handler.ConversationHandler) {
+		e.POST("/conversation/token", messageHandler.GenerateToken)
 		e.POST("/conversation/create", messageHandler.CreateConversation)
-		e.PUT("/conversation/continuation-token", messageHandler.GenerateContinuationToken)
 
 	}); err != nil {
 		panic(err.Error())
