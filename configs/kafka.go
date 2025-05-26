@@ -6,9 +6,10 @@ import (
 )
 
 type KafkaConfig struct {
-	Brokers   []string `envconfig:"BROKERS"`
-	Topics    []string `envconfig:"TOPICS"`
-	GroupName string   `envconfig:"GROUP_NAME"`
+	Brokers        []string `envconfig:"BROKERS"`
+	Topics         []string `envconfig:"TOPICS"`
+	GroupName      string   `envconfig:"GROUP_NAME"`
+	PartitionCount int      `envconfig:"PARTITION_COUNT"`
 }
 
 func NewKafkaConfig(e EnvFileRead) (KafkaConfig, error) {

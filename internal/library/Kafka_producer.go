@@ -1,4 +1,4 @@
-package kafka
+package library
 
 import (
 	"context"
@@ -7,24 +7,24 @@ import (
 )
 
 type (
-	Producer interface {
+	KafkaProducer interface {
 		Produce(ctx context.Context, msg *sarama.ProducerMessage) (partition int32, offset int64, err error)
 	}
 
-	ProducerImpl struct {
+	KafkaProducerImpl struct {
 		syncProducer sarama.SyncProducer
 	}
 )
 
-func NewProducer(cfg configs.KafkaConfig, saramaCfg *sarama.Config) (Producer, error) {
+func NewKafkaProducer(cfg configs.KafkaConfig, saramaCfg *sarama.Config) (KafkaProducer, error) {
 	syncProducer, err := sarama.NewSyncProducer(cfg.Brokers, saramaCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ProducerImpl{syncProducer: syncProducer}, nil
+	return &KafkaProducerImpl{syncProducer: syncProducer}, nil
 }
 
-func (p *ProducerImpl) Produce(ctx context.Context, msg *sarama.ProducerMessage) (partition int32, offset int64, err error) {
+func (p *KafkaProducerImpl) Produce(ctx context.Context, msg *sarama.ProducerMessage) (partition int32, offset int64, err error) {
 	return p.syncProducer.SendMessage(msg)
 }
